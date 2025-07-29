@@ -6,7 +6,7 @@ const multer = require('multer');
 const app = express();
  
 const storage = multer.diskStorage({
-    destination: (req,file, cb ) => {
+    destination: (req, file, cb) => {
         cb(null, 'public/images');
     },
     filename: (req, file, cb) => {
@@ -17,13 +17,12 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
  
 const connection = mysql.createConnection({
- 
     host: 'c237-all.mysql.database.azure.com',
     port: 3306,
     user: 'c237admin',
     password: 'c2372025!',
     database: 'c237_userdb_027_aston'
-  });
+});
  
 connection.connect((err) => {
     if (err) {
@@ -33,13 +32,11 @@ connection.connect((err) => {
     console.log('Connected to MySQL database');
 });
  
- 
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
 app.use(express.urlencoded({
     extended: false
 }));
- 
  
 app.use(session({
     secret: 'secret',
@@ -49,7 +46,6 @@ app.use(session({
 }));
  
 app.use(flash());
- 
  
 const checkAuthenticated = (req, res, next) => {
     if (req.session.user) {
@@ -69,14 +65,13 @@ const checkAdmin = (req, res, next) => {
     }
 };
  
- 
 const validateRegistration = (req, res, next) => {
     const { username, email, password, address, contact, role } = req.body;
  
     if (!username || !email || !password || !address || !contact || !role) {
         return res.status(400).send('All fields are required.');
     }
-   
+ 
     if (password.length < 6) {
         req.flash('error', 'Password should be at least 6 or more characters long');
         req.flash('formData', req.body);
@@ -90,7 +85,6 @@ app.get('/register', (req, res) => {
 });
  
 app.post('/register', validateRegistration, (req, res) => {
- 
     const { username, email, password, address, contact, role } = req.body;
  
     const sql = 'INSERT INTO users (username, email, password, address, contact, role) VALUES (?, ?, SHA1(?), ?, ?, ?)';
@@ -108,7 +102,6 @@ app.get('/login', (req, res) => {
     res.render('login', { messages: req.flash('success'), errors: req.flash('error') });
 });
  
- 
 app.post('/login', (req, res) => {
     const { email, password } = req.body;
  
@@ -124,15 +117,13 @@ app.post('/login', (req, res) => {
         }
  
         if (results.length > 0) {
-            // Successful login
             req.session.user = results[0];
             req.flash('success', 'Login successful!');
-            if(req.session.user.role == 'user')
+            if (req.session.user.role == 'user')
                 res.redirect('/shop');
             else
                 res.redirect('/inventory');
         } else {
-            // Invalid credentials
             req.flash('error', 'Invalid email or password.');
             res.redirect('/login');
         }
@@ -144,8 +135,33 @@ app.get('/logout', (req, res) => {
     res.redirect('/');
 });
  
+// Inventory page (admin only)
+app.get('/inventory', checkAuthenticated, checkAdmin, (req, res) => {
+    const sql = 'SELECT id, username, email, role FROM users';
+    connection.query(sql, (err, results) => {
+        if (err) {
+            throw err;
+        }
+        res.render('inventory', {
+            users: results,
+            messages: req.flash('success')
+        });
+    });
+});
+ 
+// Delete user (admin only)
+app.post('/delete-user', checkAuthenticated, checkAdmin, (req, res) => {
+    const userId = req.body.userId;
+ 
+    const sql = 'DELETE FROM users WHERE id = ?';
+    connection.query(sql, [userId], (err, result) => {
+        if (err) {
+            throw err;
+        }
+        req.flash('success', 'User deleted successfully');
+        res.redirect('/inventory');
+    });
+});
  
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
- 
-
